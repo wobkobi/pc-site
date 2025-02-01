@@ -1,0 +1,378 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------
+// ENUMS
+// ---------------------------------------------------
+
+// Keep your existing enums for CPU, GPU, or expansions.
+
+enum SlotInterface {
+  PCIE_5_0
+  PCIE_4_0
+  PCIE_3_0
+  PCIE_2_0
+  OTHER
+}
+
+enum MemoryType {
+  DDR3
+  DDR4
+  DDR5
+  OTHER
+}
+
+enum GMemoryType {
+  GDDR3
+  GDDR4
+  GDDR5
+  GDDR5X
+  GDDR6
+  GDDR6X
+  GDDR7
+  HBM2
+  HBM2E
+  OTHER
+}
+
+enum StorageType {
+  M2
+  SATA
+  NVME
+  OTHER
+}
+
+// ---------------------------------------------------
+// MODELS
+// ---------------------------------------------------
+
+model CPU {
+  id Int @id @default(autoincrement())
+
+  // Basic Identity
+  manufacturer String @default("Unknown")
+  series       String @default("Unknown")
+  modelName    String @default("Unknown")
+  architecture String @default("Unknown")
+  launchDate   DateTime?
+
+  // Core/Thread Details
+  numberOfCores        Int @default(0)
+  numberOfThreads      Int @default(0)
+  performanceCoreCount Int?
+  efficientCoreCount   Int?
+
+  // Frequencies
+  baseClock  Float @default(0.0)
+  boostClock Float?
+
+  pCoreBaseFreq Float?
+  pCoreMaxFreq  Float?
+  eCoreBaseFreq Float?
+  eCoreMaxFreq  Float?
+
+  // Power
+  tdp           Float?
+  maxTurboPower Float?
+
+  // Cache
+  cacheL1 Int?
+  cacheL2 Int?
+  cacheL3 Int?
+
+  processNode String?
+
+  // Memory Support
+  memoryType        MemoryType?
+  maxMemoryChannels Int?
+  maxMemoryCapacity Float?
+  eccSupport        Boolean @default(false)
+
+  // If CPU has integrated graphics (one-to-one with GPU):
+  integratedGpuId Int? @unique
+  integratedGpu   GPU? @relation("CPU_iGPU", fields: [integratedGpuId], references: [id])
+
+  // AI / NPU
+  npuName            String?
+  npuPeakTops        Int?
+  npuSparsitySupport Boolean?
+  overallPeakTops    Int?
+  aiAccelFeatures    String?
+
+  // Virtualization / Security
+  instructionSet        String?
+  instructionExtensions String?
+  virtualizationSupport String?
+  securityFeatures      String?
+
+  // Socket / Expansion
+  socketType      String @default("Unknown")
+  slotInterface   SlotInterface?
+  pciExpressLanes Int?
+
+  // Overclock
+  unlocked   Boolean @default(false)
+  partNumber String?
+  notes      String?
+
+  // Relationship to PreBuild
+  PreBuild PreBuild[]
+}
+
+model Motherboard {
+  id           Int     @id @default(autoincrement())
+  manufacturer String @default("Unknown")
+  modelName    String @default("Unknown")
+  formFactor   String?
+  chipset      String
+  cpuSocket    String
+
+  // Memory
+  memorySlots       Int?
+  memoryType        MemoryType?
+  maxMemoryCapacity Int?
+  memorySpeedNotes  String?
+
+  // Wi-Fi / Bluetooth as booleans + version
+  wifiSupport      Boolean @default(false) // e.g. true if it has Wi-Fi built-in
+  wifiVersion      String? // e.g. "Wi-Fi 6E", "Wi-Fi 7"
+  bluetoothSupport Boolean @default(false)
+  bluetoothVersion String? // e.g. "5.2", "5.4"
+
+  // Misc
+  releaseDate DateTime?
+  partNumber  String?
+  notes       String?
+
+  // Relations
+  // - For multiple Ethernet ports, USB ports, video outputs, audio jacks, internal headers
+  ethernetPorts   EthernetPort[]
+  usbPorts        MotherboardUSBPort[]
+  videoOutputs    MotherboardVideoOutput[]
+  audioJacks      MotherboardAudioJack[]
+  internalHeaders MotherboardInternalHeader[]
+  expansionSlots  ExpansionSlot[]
+  storageSlots    StorageSlot[]
+  PreBuild        PreBuild[]
+}
+
+// Example specialized model for multiple Ethernet ports (1GbE, 2.5GbE, 10GbE, etc.)
+model EthernetPort {
+  id        Int     @id @default(autoincrement())
+  portCount Int // e.g. 1, 2
+  speedGbps Float? // e.g. 2.5, 10
+  notes     String?
+
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// Example specialized USB model: store the standard & count
+model MotherboardUSBPort {
+  id          Int     @id @default(autoincrement())
+  usbStandard String // e.g. "USB 2.0", "USB 3.2 Gen2", "USB Type-C"
+  portCount   Int
+  notes       String?
+
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// Video output (HDMI, DP, version, count)
+model MotherboardVideoOutput {
+  id         Int     @id @default(autoincrement())
+  outputType String // e.g. "HDMI", "DisplayPort"
+  version    String? // e.g. "2.1", "1.4a"
+  portCount  Int
+  notes      String?
+
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// Refined Audio jacks (3.5mm, S/PDIF, line-in, etc.)
+model MotherboardAudioJack {
+  id        Int     @id @default(autoincrement())
+  jackType  String // e.g. "3.5mm", "S/PDIF"
+  usage     String? // e.g. "Line-out", "Mic", "Headphone"
+  portCount Int
+  notes     String?
+
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// Internal headers (fan, ARGB, etc.)
+model MotherboardInternalHeader {
+  id          Int     @id @default(autoincrement())
+  headerType  String // e.g. "Fan Header", "ARGB Header", "CPU_FAN", "AIO_PUMP"
+  headerCount Int
+  notes       String?
+
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// Keep expansion slots (PCIe, etc.)
+model ExpansionSlot {
+  id            Int           @id @default(autoincrement())
+  slotName      String?
+  slotInterface SlotInterface
+  maxLanes      Int?
+  notes         String?
+
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// Keep storage slots (M.2, SATA, etc.)
+model StorageSlot {
+  id            Int            @id @default(autoincrement())
+  storageType   StorageType
+  keyFormFactor String?
+  interface     SlotInterface?
+  pcieVersion   SlotInterface?
+  sataSupport   Boolean?
+  notes         String?
+
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------
+// GPU
+// ---------------------------------------------------
+
+model GPU {
+  id Int @id @default(autoincrement())
+
+  // Brand / Manufacturer
+  brand        String
+  manufacturer String?
+
+  modelName String
+  series    String?
+  gpuEngine String?
+
+  // Architecture / Brand-Specific
+  cudaCores        Int?
+  streamProcessors Int?
+  computeUnits     Int?
+  rayAccelerators  Int?
+
+  // Clocks (MHz)
+  baseClockMHz  Int?
+  boostClockMHz Int?
+
+  // Memory
+  memorySizeGB    Int
+  memoryType      GMemoryType
+  memorySpeedGbps Float?
+  memoryBusWidth  Int?
+
+  // Interface
+  busInterface SlotInterface?
+
+  // Power
+  typicalBoardPower Int?
+  recommendedPSU    Int?
+  powerConnectors   String?
+
+  // Dimensions
+  lengthMm Float?
+  widthMm  Float?
+  heightMm Float?
+  slotSize Float?
+
+  // Basic display info
+  maxResolution String?
+  maxMonitors   Int?
+  outputs       GPUVideoOutput[] // child table for detailed outputs
+
+  // Features
+  directXVersion  String?
+  openGLVersion   String?
+  multiGpuSupport String?
+
+  // Misc
+  releaseDate DateTime?
+  partNumber  String?
+  notes       String?
+
+  // If used as an iGPU for CPU
+  CPU CPU? @relation("CPU_iGPU")
+
+  // Relationship to PreBuild if used as a discrete GPU
+  PreBuild PreBuild[]
+}
+
+// Detailed video outputs for a GPU (HDMI, DisplayPort, etc.)
+model GPUVideoOutput {
+  id        Int     @id @default(autoincrement())
+  type      String // e.g. "HDMI", "DisplayPort"
+  version   String? // e.g. "2.1", "1.4a"
+  portCount Int
+  notes     String?
+
+  gpuId Int
+  gpu   GPU @relation(fields: [gpuId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------
+// RAM
+// ---------------------------------------------------
+
+model RAM {
+  id           Int     @id @default(autoincrement())
+  brand        String?
+  manufacturer String
+  series       String?
+  modelName    String
+
+  memoryType MemoryType
+  formFactor String // e.g. "UDIMM", "SODIMM"
+
+  capacityGb Float
+  kitSize    Int   @default(1)
+
+  speedMt Int?
+  voltage Float?
+  latency String?
+
+  eccSupport           Boolean @default(false)
+  registeredUnbuffered String?
+
+  ledLighting String?
+  heightMm    Float?
+
+  releaseDate DateTime?
+  partNumber  String?
+  notes       String?
+
+  PreBuild PreBuild[]
+}
+
+// ---------------------------------------------------
+// PRE-BUILD
+// ---------------------------------------------------
+
+model PreBuild {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  cpuId  Int
+  moboId Int
+  gpuId  Int?
+  ramId  Int?
+
+  cpu         CPU         @relation(fields: [cpuId], references: [id])
+  motherboard Motherboard @relation(fields: [moboId], references: [id])
+  gpu         GPU?        @relation(fields: [gpuId], references: [id])
+  ram         RAM?        @relation(fields: [ramId], references: [id])
+}
