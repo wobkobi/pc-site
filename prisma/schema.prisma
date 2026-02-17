@@ -1,0 +1,512 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------
+// ENUMS
+// ---------------------------------------------------
+
+enum SlotInterface {
+  PCIE_5_0
+  PCIE_4_0
+  PCIE_3_0
+  PCIE_2_0
+  OTHER
+}
+
+enum MemoryType {
+  DDR3
+  DDR4
+  DDR5
+  OTHER
+}
+
+enum GMemoryType {
+  GDDR3
+  GDDR4
+  GDDR5
+  GDDR5X
+  GDDR6
+  GDDR6X
+  GDDR7
+  HBM2
+  HBM2E
+  OTHER
+}
+
+enum StorageType {
+  M2
+  SATA
+  NVME
+  OTHER
+}
+
+enum MotherboardSupport {
+  ATX
+  MicroATX
+  MiniITX
+  EATX
+  SSI_EEB
+}
+
+enum FanPosition {
+  FRONT
+  BACK
+  TOP
+  BOTTOM
+  SIDE
+  OTHER
+}
+
+// ---------------------------------------------------
+// MODELS
+// ---------------------------------------------------
+
+model CPU {
+  id                    Int            @id @default(autoincrement())
+  manufacturer          String         @default("Unknown")
+  series                String         @default("Unknown")
+  modelName             String         @default("Unknown")
+  architecture          String         @default("Unknown")
+  launchDate            DateTime?
+  numberOfCores         Int            @default(0)
+  numberOfThreads       Int            @default(0)
+  performanceCoreCount  Int?
+  efficientCoreCount    Int?
+  baseClock             Float          @default(0.0)
+  boostClock            Float?
+  pCoreBaseFreq         Float?
+  pCoreMaxFreq          Float?
+  eCoreBaseFreq         Float?
+  eCoreMaxFreq          Float?
+  tdp                   Float?
+  maxTurboPower         Float?
+  cacheL1               Int?
+  cacheL2               Int?
+  cacheL3               Int?
+  processNode           String?
+  memoryType            MemoryType?
+  maxMemoryChannels     Int?
+  maxMemoryCapacity     Float?
+  eccSupport            Boolean        @default(false)
+  npuName               String?
+  npuPeakTops           Int?
+  npuSparsitySupport    Boolean?
+  overallPeakTops       Int?
+  aiAccelFeatures       String?
+  instructionSet        String?
+  instructionExtensions String?
+  virtualizationSupport String?
+  securityFeatures      String?
+  socketType            String         @default("Unknown")
+  slotInterface         SlotInterface?
+  pciExpressLanes       Int?
+  unlocked              Boolean        @default(false)
+  partNumber            String // required
+  notes                 String?
+  photo                 String[]       @default([]) // required photo URL
+
+  // Relation for integrated GPU.
+  integratedGpuId Int? @unique
+  integratedGpu   GPU? @relation("CPU_iGPU", fields: [integratedGpuId], references: [id])
+
+  // Optional included cooler relation.
+  includedCoolerId Int?       @unique
+  includedCooler   CPUCooler? @relation("IncludedCooler", fields: [includedCoolerId], references: [id])
+
+  PreBuild PreBuild[]
+}
+
+model Motherboard {
+  id                Int                         @id @default(autoincrement())
+  manufacturer      String                      @default("Unknown")
+  modelName         String                      @default("Unknown")
+  formFactor        String?
+  chipset           String
+  cpuSocket         String
+  memorySlots       Int?
+  memoryType        MemoryType?
+  maxMemoryCapacity Int?
+  memorySpeedNotes  String?
+  wifiSupport       Boolean                     @default(false)
+  wifiVersion       String?
+  bluetoothSupport  Boolean                     @default(false)
+  bluetoothVersion  String?
+  releaseDate       DateTime?
+  partNumber        String // required
+  notes             String?
+  photo             String[]                    @default([]) // required photo URL
+  ethernetPorts     EthernetPort[]
+  usbPorts          MotherboardUSBPort[]
+  videoOutputs      MotherboardVideoOutput[]
+  audioJacks        MotherboardAudioJack[]
+  internalHeaders   MotherboardInternalHeader[]
+  expansionSlots    ExpansionSlot[]
+  storageSlots      StorageSlot[]
+  // Standardized dimensions (in millimeters)
+  lengthmm          Float?
+  widthmm           Float?
+  heightmm          Float?
+  PreBuild          PreBuild[]
+}
+
+model EthernetPort {
+  id            Int         @id @default(autoincrement())
+  portCount     Int
+  speedGbps     Float?
+  notes         String?
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+model MotherboardUSBPort {
+  id            Int         @id @default(autoincrement())
+  usbStandard   String
+  portCount     Int
+  notes         String?
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+model MotherboardVideoOutput {
+  id            Int         @id @default(autoincrement())
+  outputType    String
+  version       String?
+  portCount     Int
+  notes         String?
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+model MotherboardAudioJack {
+  id            Int         @id @default(autoincrement())
+  jackType      String
+  usage         String?
+  portCount     Int
+  notes         String?
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+model MotherboardInternalHeader {
+  id            Int         @id @default(autoincrement())
+  headerType    String
+  headerCount   Int
+  notes         String?
+  motherboardId Int
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+model ExpansionSlot {
+  id            Int           @id @default(autoincrement())
+  slotName      String?
+  slotInterface SlotInterface
+  maxLanes      Int?
+  notes         String?
+  motherboardId Int
+  motherboard   Motherboard   @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+model StorageSlot {
+  id            Int            @id @default(autoincrement())
+  storageType   StorageType
+  keyFormFactor String?
+  interface     SlotInterface?
+  pcieVersion   SlotInterface?
+  sataSupport   Boolean?
+  notes         String?
+  motherboardId Int
+  motherboard   Motherboard    @relation(fields: [motherboardId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------
+// GPU
+// ---------------------------------------------------
+
+model GPU {
+  id                Int              @id @default(autoincrement())
+  brand             String
+  manufacturer      String?
+  modelName         String
+  series            String?
+  gpuEngine         String?
+  cudaCores         Int?
+  streamProcessors  Int?
+  computeUnits      Int?
+  rayAccelerators   Int?
+  baseClockMHz      Int?
+  boostClockMHz     Int?
+  memorySizeGB      Int
+  memoryType        GMemoryType
+  memorySpeedGbps   Float?
+  memoryBusWidth    Int?
+  busInterface      SlotInterface?
+  typicalBoardPower Int?
+  recommendedPSU    Int?
+  powerConnectors   String?
+  // Unified dimensions as separate fields.
+  lengthMm          Float?
+  widthMm           Float?
+  heightMm          Float?
+  maxResolution     String?
+  maxMonitors       Int?
+  outputs           GPUVideoOutput[]
+  directXVersion    String?
+  openGLVersion     String?
+  multiGpuSupport   String?
+  releaseDate       DateTime?
+  partNumber        String // required
+  notes             String?
+  photo             String[]         @default([]) // required photo URL
+  CPU               CPU?             @relation("CPU_iGPU")
+  PreBuild          PreBuild[]
+}
+
+model GPUVideoOutput {
+  id        Int     @id @default(autoincrement())
+  type      String
+  version   String?
+  portCount Int
+  notes     String?
+  gpuId     Int
+  gpu       GPU     @relation(fields: [gpuId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------
+// RAM
+// ---------------------------------------------------
+
+model RAM {
+  id                   Int        @id @default(autoincrement())
+  brand                String?
+  manufacturer         String
+  series               String?
+  modelName            String
+  memoryType           MemoryType
+  formFactor           String
+  capacityGb           Float
+  kitSize              Int        @default(1)
+  speedMt              Int?
+  voltage              Float?
+  latency              String?
+  eccSupport           Boolean    @default(false)
+  registeredUnbuffered String?
+  ledLighting          String?
+  releaseDate          DateTime?
+  partNumber           String // required
+  notes                String?
+  photo                String[]   @default([]) // required photo URL
+  PreBuild             PreBuild[]
+}
+
+// ---------------------------------------------------
+// STORAGE (DRIVES)
+// ---------------------------------------------------
+
+model Storage {
+  id           Int         @id @default(autoincrement())
+  manufacturer String
+  modelName    String
+  storageType  StorageType
+  capacityGb   Float
+  interface    String? // e.g., SATA, NVMe
+  partNumber   String // required
+  notes        String?
+  photo        String[]    @default([]) // required photo URL
+  PreBuild     PreBuild[]
+}
+
+// ---------------------------------------------------
+// COMPUTER CASE
+// ---------------------------------------------------
+
+model ComputerCase {
+  id                 Int                 @id @default(autoincrement())
+  manufacturer       String
+  modelName          String
+  caseType           String? // e.g., "Tower Chassis"
+  color              String? // e.g., "Black" or "White"
+  heightmm           Float? // in mm
+  widthmm            Float? // in mm
+  lengthmm           Float? // in mm
+  material           String? // e.g., "Steel, 4.0mm tempered glass, 3.0mm tempered glass, Aluminium"
+  motherboardSupport MotherboardSupport?
+  expansionSlots     String? // e.g., "6+1" or "Standard:7, Vertical:0"
+  storage            String? // e.g., "2 x 2.5″ behind MB tray; 2 x 3.5″ HDD cage"
+  gpuClearance       Float? // in mm (e.g., 408)
+  cpuCoolerClearance Float? // in mm (e.g., 164)
+  psuSupport         String? // e.g., "ATX (Under 220mm)"
+  ioPorts            Json? // structured I/O info
+  dustFilter         String? // e.g., "Bottom × 1"
+  weight             Float? // in kilograms
+  partNumber         String // required
+  notes              String?
+  photo              String[]            @default([]) // required photo URL
+
+  // New relations for fan and radiator support.
+  fanSupports      CaseFanSupport[]
+  radiatorSupports CaseRadiatorSupport[]
+
+  PreBuild PreBuild[]
+}
+
+// New model for fan support.
+model CaseFanSupport {
+  id             Int          @id @default(autoincrement())
+  position       FanPosition
+  sizeMm         Int
+  quantity       Int
+  computerCaseId Int
+  computerCase   ComputerCase @relation(fields: [computerCaseId], references: [id], onDelete: Cascade)
+}
+
+// New model for radiator support.
+model CaseRadiatorSupport {
+  id               Int          @id @default(autoincrement())
+  radiatorLengthMm Int // e.g., 240, 360
+  fanCount         Int // number of fans for this radiator configuration
+  computerCaseId   Int
+  computerCase     ComputerCase @relation(fields: [computerCaseId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------
+// PSU (Power Supply Unit)
+// ---------------------------------------------------
+
+model PSU {
+  id               Int        @id @default(autoincrement())
+  manufacturer     String
+  modelName        String
+  wattage          Int
+  efficiencyRating String?
+  modular          Boolean    @default(false)
+  partNumber       String // required
+  notes            String?
+  photo            String[]   @default([]) // required photo URL
+  cables           PSUCable[]
+  PreBuild         PreBuild[]
+}
+
+// ---------------------------------------------------
+// PSUCable (PSU Cable Listings)
+// ---------------------------------------------------
+
+model PSUCable {
+  id                 Int     @id @default(autoincrement())
+  quantity           Int
+  cableName          String
+  connectorsPerCable Int
+  totalConnectors    Int
+  connectorSpacing   String? // e.g., "-" if not applicable
+  totalLengthmm      String @default("0mm")// e.g., "610mm (± 10mm)"
+  cableType          String
+  psuId              Int
+  psu                PSU     @relation(fields: [psuId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------
+// FAN
+// ---------------------------------------------------
+
+model Fan {
+  id             Int      @id @default(autoincrement())
+  manufacturer   String?
+  modelName      String
+  fanConnector   String?
+  speed          String?
+  airflow        String?
+  staticPressure String?
+  noise          String?
+  partNumber     String // required
+  notes          String?
+  photo          String[] @default([]) // required photo URL
+
+  // Relation to CPUCooler (optional)
+  cpuCoolerId Int?
+  cpuCooler   CPUCooler? @relation(fields: [cpuCoolerId], references: [id])
+}
+
+// ---------------------------------------------------
+// CPU COOLER
+// ---------------------------------------------------
+
+model CPUCooler {
+  id           Int     @id @default(autoincrement())
+  manufacturer String
+  modelName    String
+  type         String? // e.g., "Liquid", "Air"
+
+  // LCD Specs
+  lcdDiameter    Float? // in mm
+  lcdColors      String?
+  lcdResolution  String?
+  lcdBrightness  Float? // cd/m²
+  lcdPanelType   String?
+  lcdRefreshRate Float? // Hz
+  lcdOrientation String?
+
+  // Pump Specs
+  pumpName          String?
+  pumpMotorSpeedMin Int? // RPM
+  pumpMotorSpeedMax Int? // RPM
+  pumpMotorVariance Int? // RPM variance
+  pumpPower         Float? // Watts
+
+  // Cap Specs
+  capDiameter          Float? // in mm
+  capHeight            Float? // in mm
+  capMaterial          String?
+  capRingMaterial      String?
+  capColdPlateMaterial String?
+  capHousingMaterial   String?
+
+  // Tubing Specs
+  tubingLengthmm Float? // in mm
+  tubingMaterial String?
+
+  // Relation to bundled fans.
+  fans Fan[]
+
+  // Socket compatibility as an array.
+  socketSupport String[] @default([])
+
+  // Overall CPUCooler dimensions as separate fields.
+  lengthmm Float?
+  widthmm  Float?
+  heightmm Float?
+
+  partNumber String // required
+  notes      String?
+  photo      String[] @default([]) // required photo URL
+
+  // Back relation for included cooler.
+  cpu CPU? @relation("IncludedCooler")
+}
+
+// ---------------------------------------------------
+// PRE-BUILD
+// ---------------------------------------------------
+
+model PreBuild {
+  id             Int          @id @default(autoincrement())
+  name           String
+  cpuId          Int
+  moboId         Int
+  gpuId          Int? // optional
+  ramId          Int // required
+  storageId      Int // required
+  computerCaseId Int // required
+  psuId          Int // required
+  cpu            CPU          @relation(fields: [cpuId], references: [id])
+  motherboard    Motherboard  @relation(fields: [moboId], references: [id])
+  gpu            GPU?         @relation(fields: [gpuId], references: [id])
+  ram            RAM          @relation(fields: [ramId], references: [id])
+  storage        Storage      @relation(fields: [storageId], references: [id])
+  computerCase   ComputerCase @relation(fields: [computerCaseId], references: [id])
+  psu            PSU          @relation(fields: [psuId], references: [id])
+}
